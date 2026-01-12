@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>⚡ Speed Test</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #020617;
+  color: #e5e7eb;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Animated Background */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(99,102,241,0.6), transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(34,197,94,0.6), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(236,72,153,0.5), transparent 40%),
+    linear-gradient(120deg, #020617, #020617, #0f172a);
+  animation: bgMove 18s linear infinite alternate;
+}
+
+@keyframes bgMove {
+  from { filter: hue-rotate(0deg); }
+  to   { filter: hue-rotate(60deg); }
+}
+
+/* Rules */
+#rules {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#ruleText {
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 500px;
+  margin-bottom: 20px;
+  white-space: pre-line;
+}
+
+/* Game UI */
+#game { display: none; padding: 15px; }
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 420px;
+  margin: auto;
+}
+
+#level, #streak { font-size: 18px; }
+
+/* Timer */
+.timer { position: relative; width: 120px; height: 120px; }
+
+.timer svg circle {
+  fill: none;
+  stroke-width: 8;
+  stroke: #1f2933;
+}
+
+#progress {
+  stroke: #22c55e;
+  stroke-dasharray: 314;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+#time {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+}
+
+/* Message */
+#message {
+  min-height: 24px;
+  font-size: 18px;
+  color: #facc15;
+  margin: 10px 0;
+}
+
+/* Arrow */
+#arrow { font-size: 42px; margin: 12px 0; }
+
+/* Grid */
+#grid {
+  display: grid;
+  grid-template-columns: repeat(4, 70px);
+  gap: 12px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.cell {
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: linear-gradient(145deg, #1f2933, #0b1220);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.cell.clicked { animation: clickPulse .25s ease; }
+
+@keyframes clickPulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.22); box-shadow: 0 0 25px rgba(255,255,255,.6); }
+  100% { transform: scale(1); }
+}
+
+button {
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: none;
+  background: #22c55e;
+  color: #020617;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+@media (max-width:600px) {
+  #grid { grid-template-columns: repeat(4, 55px); }
+  .cell { width: 55px; height: 55px; font-size: 18px; }
+  .timer { transform: scale(.85); }
+  #arrow { font-size: 34px; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="bg"></div>
+
+<!-- RULES -->
+<div id="rules">
+  <div id="ruleText"></div>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<!-- GAME -->
+<div id="game">
+  <div class="top">
+    <div id="level">Level: 1</div>
+    <div id="streak">Streak: 0</div>
+
+    <div class="timer">
+      <svg width="120" height="120">
+        <circle cx="60" cy="60" r="50"></circle>
+        <circle cx="60" cy="60" r="50" id="progress"></circle>
+      </svg>
+      <span id="time">7</span>
+    </div>
+  </div>
+
+  <div id="message"></div>
+  <div id="arrow">⬆️</div>
+  <div id="grid"></div>
+</div>
+
+<!-- AUDIO -->
+<audio id="audioClick" src="keyboard.mp3"></audio>
+<audio id="audioLose"  src="lose.mp3"></audio>
+<audio id="audioWin"   src="win.mp3"></audio>
+<audio id="audioStart" src="start.mp3"></audio>
+
+<script>
+/* JavaScript — unchanged, fully preserved */
+const ruleText = document.getElementById("ruleText");
+const startBtn = document.getElementById("startBtn");
+const rules = document.getElementById("rules");
+const game = document.getElementById("game");
+const message = document.getElementById("message");
+
+const grid = document.getElementById("grid");
+const arrow = document.getElementById("arrow");
+const levelText = document.getElementById("level");
+const streakText = document.getElementById("streak");
+const timeText = document.getElementById("time");
+const progress = document.getElementById("progress");
+
+const audioClick = document.getElementById("audioClick");
+const audioLose  = document.getElementById("audioLose");
+const audioWin   = document.getElementById("audioWin");
+const audioStart = document.getElementById("audioStart");
+
+let level = 1, streak = 0, numbers = [], correctValue = 0;
+let timer, timeLimit = 7, remaining, canClick = false;
+
+const rulesList = [
+  "Rule 1: Arrow ⬆ means click the HIGHEST number.",
+  "Rule 2: Arrow ⬇ means click the LOWEST number.",
+  "Rule 3: Finish your choice before the countdown ends."
+];
+
+let ruleIndex = 0, charIndex = 0;
+function typeRules(){
+  if(ruleIndex >= rulesList.length) return;
+  if(charIndex < rulesList[ruleIndex].length){
+    ruleText.textContent += rulesList[ruleIndex][charIndex++];
+    setTimeout(typeRules, 30);
+  } else {
+    ruleText.textContent += "\n";
+    ruleIndex++; charIndex = 0;
+    setTimeout(typeRules, 500);
+  }
+}
+typeRules();
+
+startBtn.onclick = () => {
+  audioStart.currentTime = 0;
+  audioStart.play();
+  rules.style.display = "none";
+  game.style.display = "block";
+  startRound();
+};
+
+function getBoxCount(){
+  if(level >= 10) return 20;
+  if(level >= 5)  return 16;
+  return 12;
+}
+function getTimeLimit(){
+  if(level >= 10) return 5;
+  if(level >= 5)  return 6;
+  return 7;
+}
+
+function buildGrid(){
+  grid.innerHTML = "";
+  numbers = [];
+  const boxCount = getBoxCount();
+  while(numbers.length < boxCount)
+    numbers.push(Math.floor(Math.random()*25) + 1);
+
+  numbers.forEach(v => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.textContent = v;
+    cell.onclick = () => handleClick(v, cell);
+    grid.appendChild(cell);
+  });
+}
+
+function startRound(){
+  clearInterval(timer);
+  timeLimit = getTimeLimit();
+  buildGrid();
+  arrow.textContent = Math.random() < 0.5 ? "⬆️" : "⬇️";
+  correctValue = arrow.textContent === "⬆️"
+    ? Math.max(...numbers)
+    : Math.min(...numbers);
+
+  remaining = timeLimit;
+  timeText.textContent = remaining;
+  progress.style.strokeDashoffset = 0;
+
+  canClick = true;
+  message.textContent = "";
+  timer = setInterval(updateTimer, 1000);
+}
+
+function updateTimer(){
+  remaining--;
+  timeText.textContent = remaining;
+  progress.style.strokeDashoffset = 314 * (1 - remaining / timeLimit);
+  if(remaining <= 0){
+    message.textContent = "Time's up ⏳ You lost.";
+    loseRound();
+  }
+}
+
+function handleClick(value, cell){
+  if(!canClick) return;
+  canClick = false;
+  audioClick.currentTime = 0; audioClick.play();
+  cell.classList.add("clicked");
+  setTimeout(() => cell.classList.remove("clicked"), 250);
+
+  if(value === correctValue){
+    audioWin.play();
+    streak++; level++;
+    message.textContent = "Correct! Keep it up 🔥";
+    updateUI();
+    setTimeout(startRound, 700);
+  } else {
+    message.textContent = `Wrong ❌ You clicked ${value}, correct was ${correctValue}`;
+    loseRound();
+  }
+}
+
+function loseRound(){
+  clearInterval(timer);
+  audioLose.play();
+  message.textContent += "  Restarting in 3 seconds...";
+  level = 1; streak = 0;
+  updateUI();
+  setTimeout(startRound, 3000);
+}
+
+function updateUI(){
+  levelText.textContent = "Level: " + level;
+  streakText.textContent = "Streak: " + streak;
+}
+</script>
+</body>
+</html>
